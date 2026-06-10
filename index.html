@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Net-07 Game Maker Pro</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- CodeMirror -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material-ocean.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f111a;
+            color: #8f93a2;
+            overflow: hidden;
+        }
+
+        .font-mono { font-family: 'Fira Code', monospace; }
+
+        .ide-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr 340px;
+            height: calc(100vh - 48px);
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f111a; }
+        ::-webkit-scrollbar-thumb { background: #3b3f51; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #545974; }
+
+        .CodeMirror {
+            height: 100% !important;
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            background-color: #1a1c23 !important;
+            border-radius: 0.5rem;
+        }
+        
+        .pixelated {
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        .game-screen {
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            background-color: #000;
+            border-radius: 4px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .sprite-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 1px;
+            background-color: #3b3f51;
+            border: 2px solid #292d3e;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .sprite-cell {
+            aspect-ratio: 1 / 1;
+            cursor: crosshair;
+        }
+        .sprite-cell:hover { opacity: 0.8; }
+
+        .palette-btn.active { border: 2px solid #fff; transform: scale(1.1); }
+        .sprite-slot.active { border-color: #82aaff; background-color: #292d3e; }
+
+        /* Map Editor Styles */
+        .map-container {
+            width: 100%;
+            height: 300px;
+            overflow: auto;
+            border: 2px solid #292d3e;
+            background: #1a1c23;
+            border-radius: 4px;
+            position: relative;
+            cursor: crosshair;
+        }
+        #mapEditorCanvas {
+            width: 512px; /* 64 tiles * 8px */
+            height: 512px;
+            background-image: 
+                linear-gradient(45deg, #11131a 25%, transparent 25%, transparent 75%, #11131a 75%, #11131a),
+                linear-gradient(45deg, #11131a 25%, transparent 25%, transparent 75%, #11131a 75%, #11131a);
+            background-size: 16px 16px;
+            background-position: 0 0, 8px 8px;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen text-sm">
+
+    <!-- Top Navigation -->
+    <header class="h-12 bg-[#1a1c23] border-b border-[#292d3e] flex items-center justify-between px-4 shrink-0">
+        <div class="flex items-center gap-3">
+            <!-- Custom Net-07 Logo -->
+            <svg class="w-7 h-7 drop-shadow-md" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100" height="100" rx="24" fill="#292d3e" stroke="#82aaff" stroke-width="4"/>
+                <path d="M30 70V30L70 70V30" stroke="#82aaff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="70" cy="30" r="7" fill="#ffcb6b" />
+                <circle cx="30" cy="70" r="7" fill="#ffcb6b" />
+            </svg>
+            <h1 class="text-white font-bold tracking-wide text-lg">Net-07 <span class="text-[#8f93a2] font-normal text-xs ml-2">Pro Engine</span></h1>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <button id="btnRun" class="flex items-center gap-2 bg-[#c3e88d] hover:bg-[#b0d878] text-black px-4 py-1.5 rounded font-semibold transition-colors">
+                <i data-lucide="play" class="w-4 h-4"></i> Run Game
+            </button>
+            <button id="btnStop" class="flex items-center gap-2 bg-[#ff5370] hover:bg-[#e04a62] text-white px-4 py-1.5 rounded font-semibold transition-colors hidden">
+                <i data-lucide="square" class="w-4 h-4 fill-current"></i> Stop
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="ide-grid w-full bg-[#0f111a]">
+        
+        <!-- Left Panel: Assets (Tabs) -->
+        <div class="border-r border-[#292d3e] flex flex-col h-full bg-[#1a1c23] overflow-hidden">
+            <!-- Tabs Header -->
+            <div class="flex border-b border-[#292d3e] shrink-0">
+                <button id="tabBtnSprite" class="flex-1 py-2.5 text-sm font-semibold flex justify-center items-center gap-2 bg-[#292d3e] text-white transition-colors">
+                    <i data-lucide="palette" class="w-4 h-4 text-[#c792ea]"></i> Sprites
+                </button>
+                <button id="tabBtnMap" class="flex-1 py-2.5 text-sm font-semibold flex justify-center items-center gap-2 text-[#8f93a2] hover:bg-[#1f222b] transition-colors">
+                    <i data-lucide="map" class="w-4 h-4 text-[#82aaff]"></i> Map
+                </button>
+            </div>
+
+            <!-- Sprites Content -->
+            <div id="tabSprite" class="flex flex-col flex-grow p-4 gap-4 overflow-y-auto">
+                <div id="spriteEditor" class="sprite-grid w-full max-w-[200px] mx-auto shrink-0"></div>
+
+                <div class="shrink-0">
+                    <div class="text-xs text-[#8f93a2] mb-2 font-semibold uppercase tracking-wider">Palette</div>
+                    <div id="palette" class="grid grid-cols-8 gap-1"></div>
+                </div>
+
+                <div class="flex-grow flex flex-col">
+                    <div class="text-xs text-[#8f93a2] mb-2 font-semibold uppercase tracking-wider">Sprite Bank (64)</div>
+                    <div id="spriteList" class="grid grid-cols-8 gap-1.5 overflow-y-auto pr-1 pb-4"></div>
+                </div>
+            </div>
+
+            <!-- Map Content -->
+            <div id="tabMap" class="hidden flex-col flex-grow p-4 gap-4 overflow-y-auto">
+                <div class="text-xs text-[#8f93a2] flex justify-between items-center">
+                    <span class="font-semibold uppercase tracking-wider">World Map (64x64 tiles)</span>
+                    <span id="mapCoords" class="font-mono">0,0</span>
+                </div>
+                
+                <div class="map-container" id="mapContainer">
+                    <canvas id="mapEditorCanvas" width="512" height="512" class="pixelated"></canvas>
+                </div>
+
+                <div class="text-xs text-[#8f93a2] bg-[#0f111a] p-2 rounded border border-[#292d3e]">
+                    <i data-lucide="info" class="w-3 h-3 inline mr-1"></i> 
+                    Paint using active sprite. Right click to erase (set to 0).
+                </div>
+                
+                <div class="text-xs text-[#8f93a2] mt-2 font-semibold uppercase tracking-wider">Active Brush</div>
+                <div class="flex gap-3 items-center bg-[#0f111a] p-2 rounded border border-[#292d3e]">
+                    <canvas id="activeBrushPreview" width="16" height="16" class="pixelated w-8 h-8"></canvas>
+                    <span class="font-mono text-[#c3e88d]" id="brushLabel">Sprite 0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Panel: Code Editor -->
+        <div class="h-full flex flex-col p-4">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2 text-white font-semibold">
+                    <i data-lucide="code-2" class="w-4 h-4 text-[#82aaff]"></i> main.js
+                </div>
+                <div class="text-xs text-[#8f93a2] flex items-center gap-2">
+                    <span>API: <code class="text-[#c792ea]">mget, mset, camera, map, spr(id,x,y,flip)</code></span>
+                </div>
+            </div>
+            <div class="flex-grow relative border border-[#292d3e] rounded-lg overflow-hidden">
+                <textarea id="codeEditor"></textarea>
+            </div>
+        </div>
+
+        <!-- Right Panel: Game Preview -->
+        <div class="border-l border-[#292d3e] flex flex-col h-full bg-[#1a1c23] p-4 gap-4">
+            <div class="flex items-center gap-2 text-white font-semibold mb-1">
+                <i data-lucide="monitor-play" class="w-4 h-4 text-[#ffcb6b]"></i> Game Display
+            </div>
+            
+            <!-- Logical 128x128 Canvas -->
+            <div class="w-full flex justify-center bg-black rounded-lg p-2 border border-[#292d3e] relative group">
+                <canvas id="gameCanvas" width="128" height="128" class="game-screen pixelated outline-none" tabindex="0"></canvas>
+                <div class="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center pointer-events-none text-white font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                    Click to Focus Controls
+                </div>
+            </div>
+            <div class="text-xs text-center text-[#8f93a2]">Controls: Arrow Keys + Z/X</div>
+
+            <!-- Console -->
+            <div class="flex-grow flex flex-col mt-2">
+                <div class="text-xs text-[#8f93a2] mb-2 font-semibold uppercase tracking-wider flex items-center gap-1">
+                    <i data-lucide="terminal" class="w-3 h-3"></i> Console
+                </div>
+                <div id="consoleOut" class="flex-grow bg-[#0f111a] border border-[#292d3e] rounded p-2 font-mono text-xs overflow-y-auto whitespace-pre-wrap break-words text-[#c3e88d]">Engine Ready.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // --- Core Constants ---
+        const PALETTE = [
+            '#000000', '#1D2B53', '#7E2553', '#008751', '#AB5236', '#5F574F', '#C2C3C7', '#FFF1E8',
+            '#FF004D', '#FFA300', '#FFEC27', '#00E436', '#29ADFF', '#83769C', '#FF77A8', '#FFCCAA'
+        ];
+        const MAP_SIZE = 64; // 64x64 tiles
+
+        // --- Global State ---
+        let sprites = Array.from({ length: 64 }, () => Array(64).fill(0));
+        let mapData = new Uint8Array(MAP_SIZE * MAP_SIZE);
+        
+        let activeSpriteIndex = 0;
+        let activeColorIndex = 7;
+        let isDrawing = false;
+        let isRunning = false;
+        let animationFrameId = null;
+        
+        // --- Game Engine Variables ---
+        let camX = 0;
+        let camY = 0;
+        const keys = {};
+        const keyMap = { 'ArrowUp': 'up', 'ArrowDown': 'down', 'ArrowLeft': 'left', 'ArrowRight': 'right', 'z': 'z', 'x': 'x', ' ': 'z' };
+
+        // --- Asset Pre-filling (Platformer Setup) ---
+        // Player
+        sprites[0] = [ 0,0,0,0,0,0,0,0, 0,0,11,11,11,11,0,0, 0,11,11,11,11,11,11,0, 0,7,7,7,7,7,7,0, 0,7,0,7,7,0,7,0, 0,7,7,7,7,7,7,0, 0,0,8,8,8,8,0,0, 0,8,0,0,0,0,8,0 ];
+        // Grass top
+        sprites[1] = [ 11,11,11,11,11,11,11,11, 3,3,3,3,3,3,3,3, 3,3,3,3,3,3,3,3, 3,3,3,3,3,3,3,3, 3,3,3,3,3,3,3,3, 3,3,3,3,3,3,3,3, 3,3,3,3,3,3,3,3, 3,3,3,3,3,3,3,3 ];
+        // Dirt block
+        sprites[2] = [ 4,4,4,4,4,4,4,4, 4,5,4,5,5,4,5,4, 4,4,4,4,4,4,4,4, 4,5,5,4,5,4,4,4, 4,4,4,4,4,4,5,4, 4,5,4,4,4,5,4,4, 4,4,4,5,4,4,4,4, 4,4,4,4,4,4,4,4 ];
+        // Brick
+        sprites[3] = [ 5,5,5,5,5,5,5,5, 2,2,2,2,5,2,2,2, 5,5,5,5,5,5,5,5, 2,2,5,2,2,2,2,5, 5,5,5,5,5,5,5,5, 2,2,2,2,5,2,2,2, 5,5,5,5,5,5,5,5, 2,2,5,2,2,2,2,5 ];
+        // Spike
+        sprites[4] = [ 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,13,13,0,0,0, 0,0,13,6,6,13,0,0, 0,13,6,6,6,6,13,0, 13,6,6,6,6,6,6,13, 6,6,6,6,6,6,6,6 ];
+
+        // Build Initial Map (Floor & Platforms)
+        for(let x=0; x<30; x++) {
+            mapData[12 * MAP_SIZE + x] = 1; // row 12 floor
+            mapData[13 * MAP_SIZE + x] = 2; // dirt below
+            mapData[14 * MAP_SIZE + x] = 2; 
+        }
+        // Small platforms
+        mapData[9 * MAP_SIZE + 10] = 3; mapData[9 * MAP_SIZE + 11] = 3;
+        mapData[7 * MAP_SIZE + 15] = 3; mapData[7 * MAP_SIZE + 16] = 3; mapData[7 * MAP_SIZE + 17] = 3;
+        // Spikes on floor
+        mapData[11 * MAP_SIZE + 20] = 4; mapData[11 * MAP_SIZE + 21] = 4;
+        // A wall to block
+        mapData[11 * MAP_SIZE + 25] = 3; mapData[10 * MAP_SIZE + 25] = 3; mapData[9 * MAP_SIZE + 25] = 3;
+
+        // --- DOM Elements ---
+        const editorDiv = document.getElementById('spriteEditor');
+        const paletteDiv = document.getElementById('palette');
+        const spriteListDiv = document.getElementById('spriteList');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const ctx = gameCanvas.getContext('2d');
+        const consoleOut = document.getElementById('consoleOut');
+        
+        const mapCanvasDOM = document.getElementById('mapEditorCanvas');
+        const mapCtx = mapCanvasDOM.getContext('2d');
+        const brushLabel = document.getElementById('brushLabel');
+        const brushPreview = document.getElementById('activeBrushPreview').getContext('2d');
+        const mapCoords = document.getElementById('mapCoords');
+
+        // --- UI Tabbing ---
+        document.getElementById('tabBtnSprite').onclick = () => {
+            document.getElementById('tabSprite').classList.remove('hidden');
+            document.getElementById('tabSprite').classList.add('flex');
+            document.getElementById('tabMap').classList.remove('flex');
+            document.getElementById('tabMap').classList.add('hidden');
+            document.getElementById('tabBtnSprite').classList.replace('bg-[#1f222b]', 'bg-[#292d3e]');
+            document.getElementById('tabBtnSprite').classList.replace('text-[#8f93a2]', 'text-white');
+            document.getElementById('tabBtnMap').classList.replace('bg-[#292d3e]', 'bg-transparent');
+            document.getElementById('tabBtnMap').classList.replace('text-white', 'text-[#8f93a2]');
+        };
+        document.getElementById('tabBtnMap').onclick = () => {
+            document.getElementById('tabMap').classList.remove('hidden');
+            document.getElementById('tabMap').classList.add('flex');
+            document.getElementById('tabSprite').classList.remove('flex');
+            document.getElementById('tabSprite').classList.add('hidden');
+            document.getElementById('tabBtnMap').classList.add('bg-[#292d3e]');
+            document.getElementById('tabBtnMap').classList.replace('text-[#8f93a2]', 'text-white');
+            document.getElementById('tabBtnSprite').classList.replace('bg-[#292d3e]', 'bg-transparent');
+            document.getElementById('tabBtnSprite').classList.replace('text-white', 'text-[#8f93a2]');
+            renderMapEditor();
+        };
+
+        // --- Setup CodeMirror ---
+        const codeTextarea = document.getElementById('codeEditor');
+        const editor = CodeMirror.fromTextArea(codeTextarea, {
+            mode: 'javascript', theme: 'material-ocean', lineNumbers: true, indentUnit: 4, matchBrackets: true, autoCloseBrackets: true
+        });
+
+        // --- Advanced Platformer Code ---
+        const defaultCode = `// Net-07 Pro: Advanced Scrolling Platformer Demo
+
+let p = { x: 20, y: 50, vx: 0, vy: 0, flip: false };
+
+function init() {
+    print("Welcome to the Map Editor demo!");
+    print("Explore the level, jump spikes!");
+}
+
+// Map Collision Helper: Returns true if map tile at x,y is Solid (sprite > 0)
+// Spikes (sprite 4) are handled separately.
+function solid(x, y) {
+    let t = mget(flr(x/8), flr(y/8));
+    return t > 0 && t != 4; 
+}
+
+// Check 4 corners of player hitbox (6x7 pixels to fit smoothly in 8x8 blocks)
+function box_collide(x, y) {
+    return solid(x+1, y+1) || solid(x+6, y+1) || 
+           solid(x+1, y+7) || solid(x+6, y+7);
+}
+
+function update(dt) {
+    // Math scaled physics 
+    let accel = 30 * dt;
+    let fric = 0.85;
+    let grav = 40 * dt;
+    let jump_pwr = -450 * dt;
+
+    // Movement
+    if (btn('left')) { p.vx -= accel; p.flip = true; }
+    if (btn('right')) { p.vx += accel; p.flip = false; }
+    p.vx *= fric;
+    p.vy += grav;
+
+    // X axis collision
+    p.x += p.vx;
+    if (box_collide(p.x, p.y)) {
+        if (p.vx > 0) p.x = flr((p.x+6)/8)*8 - 6.01;
+        else if (p.vx < 0) p.x = flr((p.x+1)/8)*8 + 8;
+        p.vx = 0;
+    }
+
+    // Y axis collision
+    p.y += p.vy;
+    let grounded = false;
+    if (box_collide(p.x, p.y)) {
+        if (p.vy > 0) { 
+            grounded = true; 
+            p.y = flr((p.y+7)/8)*8 - 7.01; 
+        }
+        else if (p.vy < 0) {
+            p.y = flr((p.y+1)/8)*8 + 8;
+        }
+        p.vy = 0;
+    }
+
+    // Jump
+    if (btn('z') && grounded) p.vy = jump_pwr;
+    
+    // Death by Spike (Sprite 4) - Check center of player
+    if (mget(flr((p.x+4)/8), flr((p.y+4)/8)) === 4) {
+        p.x = 20; p.y = 50; p.vx = 0; p.vy = 0; // reset
+        print("Ouch! Hit a spike.");
+    }
+
+    // Screen Boundary
+    if (p.x < 0) p.x = 0;
+    if (p.y > 150) { p.y = 50; p.x = 20; } // fell off world
+
+    // Dynamic Camera Tracking (keeps player center screen)
+    camera(p.x - 60, p.y - 64);
+}
+
+function draw() {
+    cls(12); // Clear with sky blue
+    
+    // Draw clouds (Parallax effect using camX)
+    circfill(camX*0.8 + 40, camY*0.9 + 30, 10, 7);
+    circfill(camX*0.8 + 55, camY*0.9 + 30, 15, 7);
+    circfill(camX*0.8 + 70, camY*0.9 + 30, 10, 7);
+    
+    // Draw the active Map layer (0,0 map grid to 64,64 size)
+    map(0, 0, 0, 0, 64, 64);
+    
+    // Draw Player sprite, using flip state
+    spr(0, p.x, p.y, p.flip);
+}`;
+        editor.setValue(defaultCode);
+
+        // --- Utility ---
+        function printConsole(msg, isError = false) {
+            const span = document.createElement('span');
+            span.className = isError ? 'text-[#ff5370]' : 'text-[#8f93a2]';
+            span.innerText = "> " + msg + "\n";
+            consoleOut.appendChild(span);
+            consoleOut.scrollTop = consoleOut.scrollHeight;
+        }
+
+        function drawSpriteToCtx(context, id, dx, dy, flipX=false) {
+            const sprite = sprites[id];
+            if (!sprite) return;
+            for(let py=0; py<8; py++) {
+                for(let px=0; px<8; px++) {
+                    const colIdx = sprite[py*8 + px];
+                    if(colIdx !== 0) {
+                        context.fillStyle = PALETTE[colIdx];
+                        let finalX = flipX ? (7 - px) : px;
+                        context.fillRect(Math.floor(dx) + finalX, Math.floor(dy) + py, 1, 1);
+                    }
+                }
+            }
+        }
+
+        // --- UI Rendering: Sprite Editor ---
+        function renderPalette() {
+            paletteDiv.innerHTML = '';
+            PALETTE.forEach((color, idx) => {
+                const btn = document.createElement('div');
+                btn.className = `w-full aspect-square rounded cursor-pointer transition-transform ${idx === activeColorIndex ? 'active' : ''}`;
+                btn.style.backgroundColor = color;
+                btn.onclick = () => { activeColorIndex = idx; renderPalette(); };
+                paletteDiv.appendChild(btn);
+            });
+        }
+
+        function renderSpriteEditor() {
+            editorDiv.innerHTML = '';
+            const currentSprite = sprites[activeSpriteIndex];
+            
+            for (let i = 0; i < 64; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'sprite-cell';
+                cell.style.backgroundColor = currentSprite[i] === 0 ? '#1a1c23' : PALETTE[currentSprite[i]];
+                
+                const paint = () => {
+                    if (currentSprite[i] !== activeColorIndex) {
+                        currentSprite[i] = activeColorIndex;
+                        cell.style.backgroundColor = activeColorIndex === 0 ? '#1a1c23' : PALETTE[activeColorIndex];
+                        updateSpritePreview(activeSpriteIndex);
+                        updateActiveBrush(); // update if brushing
+                        if (!document.getElementById('tabMap').classList.contains('hidden')) renderMapEditor(); // live update map
+                    }
+                };
+
+                cell.addEventListener('mousedown', (e) => { isDrawing = true; paint(); e.preventDefault(); });
+                cell.addEventListener('mouseenter', () => { if (isDrawing) paint(); });
+                editorDiv.appendChild(cell);
+            }
+        }
+
+        function renderSpriteList() {
+            spriteListDiv.innerHTML = '';
+            sprites.forEach((sprite, idx) => {
+                const slot = document.createElement('div');
+                slot.className = `sprite-slot w-full aspect-square border rounded cursor-pointer overflow-hidden relative ${idx === activeSpriteIndex ? 'active' : 'border-[#292d3e]'}`;
+                slot.onclick = () => {
+                    activeSpriteIndex = idx;
+                    renderSpriteList();
+                    renderSpriteEditor();
+                    updateActiveBrush();
+                };
+
+                const cvs = document.createElement('canvas');
+                cvs.width = 8; cvs.height = 8;
+                cvs.className = 'w-full h-full pixelated bg-[#1a1c23]';
+                cvs.id = `preview-${idx}`;
+                slot.appendChild(cvs);
+                spriteListDiv.appendChild(slot);
+                updateSpritePreview(idx);
+            });
+        }
+
+        function updateSpritePreview(idx) {
+            const cvs = document.getElementById(`preview-${idx}`);
+            if(!cvs) return;
+            const pctx = cvs.getContext('2d');
+            pctx.clearRect(0,0,8,8);
+            drawSpriteToCtx(pctx, idx, 0, 0);
+        }
+
+        function updateActiveBrush() {
+            brushLabel.innerText = `Sprite ${activeSpriteIndex}`;
+            brushPreview.clearRect(0,0,16,16);
+            if(activeSpriteIndex > 0) {
+                // scale x2 for preview
+                brushPreview.save(); brushPreview.scale(2,2);
+                drawSpriteToCtx(brushPreview, activeSpriteIndex, 0, 0);
+                brushPreview.restore();
+            }
+        }
+
+        document.addEventListener('mouseup', () => isDrawing = false);
+
+        // --- Map Editor Logic ---
+        let isMapDrawing = false;
+        let mapDrawMode = 1; // 1 = paint, 0 = erase
+        
+        function handleMapInteract(e) {
+            const rect = mapCanvasDOM.getBoundingClientRect();
+            // Need to account for potential scrolling in container or scaling
+            const scaleX = mapCanvasDOM.width / rect.width;
+            const scaleY = mapCanvasDOM.height / rect.height;
+            
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+            
+            const tx = Math.floor(x / 8);
+            const ty = Math.floor(y / 8);
+            
+            mapCoords.innerText = `${tx},${ty}`;
+
+            if (isMapDrawing) {
+                if (tx >= 0 && tx < MAP_SIZE && ty >= 0 && ty < MAP_SIZE) {
+                    const paintVal = mapDrawMode === 1 ? activeSpriteIndex : 0;
+                    if(mapData[ty * MAP_SIZE + tx] !== paintVal) {
+                        mapData[ty * MAP_SIZE + tx] = paintVal;
+                        // local redraw for performance
+                        mapCtx.clearRect(tx*8, ty*8, 8, 8);
+                        if (paintVal > 0) drawSpriteToCtx(mapCtx, paintVal, tx*8, ty*8);
+                    }
+                }
+            }
+        }
+
+        mapCanvasDOM.addEventListener('mousedown', (e) => {
+            isMapDrawing = true;
+            mapDrawMode = e.button === 2 ? 0 : 1; // Right click erases
+            handleMapInteract(e);
+        });
+        mapCanvasDOM.addEventListener('mousemove', handleMapInteract);
+        mapCanvasDOM.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('mouseup', () => isMapDrawing = false);
+
+        function renderMapEditor() {
+            mapCtx.clearRect(0,0,512,512);
+            for(let y=0; y<MAP_SIZE; y++) {
+                for(let x=0; x<MAP_SIZE; x++) {
+                    let tile = mapData[y * MAP_SIZE + x];
+                    if (tile > 0) drawSpriteToCtx(mapCtx, tile, x*8, y*8);
+                }
+            }
+        }
+
+        // --- Game Engine API ---
+        const engineAPI = {
+            cls: (color = 0) => {
+                ctx.fillStyle = PALETTE[color];
+                ctx.fillRect(0, 0, 128, 128);
+            },
+            camera: (x = 0, y = 0) => {
+                camX = Math.floor(x); camY = Math.floor(y);
+            },
+            rect: (x, y, w, h, color = 7) => {
+                ctx.strokeStyle = PALETTE[color];
+                ctx.strokeRect(Math.floor(x) - camX + 0.5, Math.floor(y) - camY + 0.5, w-1, h-1);
+            },
+            rectfill: (x, y, w, h, color = 7) => {
+                ctx.fillStyle = PALETTE[color];
+                ctx.fillRect(Math.floor(x) - camX, Math.floor(y) - camY, w, h);
+            },
+            circ: (x, y, r, color = 7) => {
+                ctx.beginPath(); ctx.arc(Math.floor(x)-camX, Math.floor(y)-camY, r, 0, Math.PI * 2);
+                ctx.strokeStyle = PALETTE[color]; ctx.stroke();
+            },
+            circfill: (x, y, r, color = 7) => {
+                ctx.beginPath(); ctx.arc(Math.floor(x)-camX, Math.floor(y)-camY, r, 0, Math.PI * 2);
+                ctx.fillStyle = PALETTE[color]; ctx.fill();
+            },
+            spr: (id, x, y, flip_x=false) => {
+                drawSpriteToCtx(ctx, id, Math.floor(x)-camX, Math.floor(y)-camY, flip_x);
+            },
+            mget: (x, y) => {
+                if (x < 0 || x >= MAP_SIZE || y < 0 || y >= MAP_SIZE) return 0;
+                return mapData[Math.floor(y) * MAP_SIZE + Math.floor(x)];
+            },
+            mset: (x, y, v) => {
+                if (x >= 0 && x < MAP_SIZE && y >= 0 && y < MAP_SIZE) {
+                    mapData[Math.floor(y) * MAP_SIZE + Math.floor(x)] = v;
+                }
+            },
+            map: (cel_x, cel_y, sx, sy, cel_w, cel_h) => {
+                for(let y=0; y<cel_h; y++) {
+                    for(let x=0; x<cel_w; x++) {
+                        let t = engineAPI.mget(cel_x + x, cel_y + y);
+                        // Culling: Don't draw if completely offscreen
+                        let screenX = sx + x*8 - camX;
+                        let screenY = sy + y*8 - camY;
+                        if (t > 0 && screenX > -8 && screenX < 128 && screenY > -8 && screenY < 128) {
+                            drawSpriteToCtx(ctx, t, sx + x*8 - camX, sy + y*8 - camY);
+                        }
+                    }
+                }
+            },
+            btn: (k) => !!keys[k],
+            print: (msg) => printConsole(msg),
+            
+            // Standard Math bindings injected globally
+            flr: Math.floor, ceil: Math.ceil, abs: Math.abs, max: Math.max, min: Math.min,
+            rnd: (n) => Math.random() * n,
+            sin: Math.sin, cos: Math.cos
+        };
+
+        // --- Game Loop Management ---
+        let gameScope = null;
+        let lastTime = 0;
+
+        function startGame() {
+            if (isRunning) stopGame();
+            consoleOut.innerHTML = ''; 
+            printConsole("Compiling Engine...", false);
+
+            const userCode = editor.getValue();
+            try {
+                const buildScope = new Function('api', `
+                    with(api) {
+                        try {
+                            ${userCode}
+                        } catch(e) {
+                            api.print("Compile Error: " + e.message); throw e;
+                        }
+                        return {
+                            init: typeof init === 'function' ? init : () => {},
+                            update: typeof update === 'function' ? update : (dt) => {},
+                            draw: typeof draw === 'function' ? draw : () => {}
+                        };
+                    }
+                `);
+
+                gameScope = buildScope(engineAPI);
+                
+                isRunning = true;
+                camX = 0; camY = 0; // reset camera
+                for (let k in keys) keys[k] = false;
+
+                document.getElementById('btnRun').classList.add('hidden');
+                document.getElementById('btnStop').classList.remove('hidden');
+                gameCanvas.focus(); 
+                
+                if (gameScope.init) gameScope.init();
+                lastTime = performance.now();
+                animationFrameId = requestAnimationFrame(gameLoop);
+                
+                printConsole("Running.");
+            } catch (e) {
+                printConsole("Failed to start.", true);
+            }
+        }
+
+        function stopGame() {
+            if(animationFrameId) cancelAnimationFrame(animationFrameId);
+            isRunning = false;
+            document.getElementById('btnRun').classList.remove('hidden');
+            document.getElementById('btnStop').classList.add('hidden');
+            printConsole("Game Stopped.");
+        }
+
+        function gameLoop(currentTime) {
+            if (!isRunning) return;
+            let dt = (currentTime - lastTime) / 1000;
+            if (dt > 0.1) dt = 0.1; // cap frame drop
+            lastTime = currentTime;
+
+            try {
+                gameScope.update(dt);
+                // Clear ctx transforms just in case, though we handle camera manually in logic now
+                ctx.setTransform(1, 0, 0, 1, 0, 0); 
+                gameScope.draw();
+            } catch (e) {
+                printConsole("Runtime Error: " + e.message, true);
+                stopGame();
+                return;
+            }
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Input Handling ---
+        gameCanvas.addEventListener('keydown', (e) => {
+            if (keyMap[e.key]) { keys[keyMap[e.key]] = true; e.preventDefault(); }
+        });
+        gameCanvas.addEventListener('keyup', (e) => {
+            if (keyMap[e.key]) { keys[keyMap[e.key]] = false; e.preventDefault(); }
+        });
+
+        // Event Listeners for UI
+        document.getElementById('btnRun').addEventListener('click', startGame);
+        document.getElementById('btnStop').addEventListener('click', stopGame);
+
+        // Initialization
+        renderPalette();
+        renderSpriteList();
+        renderSpriteEditor();
+        updateActiveBrush();
+        renderMapEditor();
+        engineAPI.cls(0); 
+
+    </script>
+</body>
+</html>
